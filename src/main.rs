@@ -111,7 +111,6 @@ async fn resize_image(
                 Ok(_) => {
                     return HttpResponse::Ok()
                         .append_header(("Cache-Control", "public, max-age=7200"))
-                        .content_type(format_to_content_type(&extension))
                         .body(cursor.into_inner())
                 }
                 Err(e) => {
@@ -127,7 +126,6 @@ async fn resize_image(
                 Ok(_) => {
                     return HttpResponse::Ok()
                         .append_header(("Cache-Control", "public, max-age=7200"))
-                        .content_type(format_to_content_type(&extension))
                         .body(cursor.into_inner())
                 }
                 Err(e) => {
@@ -167,27 +165,12 @@ async fn resize_image(
                     }
                 };
 
-                let file_extension = &path
-                    .extension()
-                    .map(|ext| ext.to_string_lossy().into_owned())
-                    .unwrap();
-
                 HttpResponse::Ok()
                     .append_header(("Cache-Control", "public, max-age=7200"))
-                    .content_type(format_to_content_type(file_extension))
                     .streaming(large_data_stream)
             }
             Err(_) => HttpResponse::NotFound().content_type("text/plain").body("404: Not found."),
         }
-    }
-}
-
-fn format_to_content_type(file_extension: &String) -> &str {
-    match file_extension.as_str() {
-        "jpeg" | "jpg" => "image/jpeg",
-        "png" => "image/png",
-        "gif" => "image/gif",
-        _ => "application/octet-stream",
     }
 }
 
