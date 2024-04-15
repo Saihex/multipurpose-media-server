@@ -16,3 +16,4 @@ The downscaling feature works by providing certain query parameters to the HTTP 
 **Note: all image manipulation are programmed to maintain aspect ratio even forced ones.**
 
 Empty path (`https://img.example.com/`) will make the program to load `index.html` in the collection directory. Will cause error 500 if none present in the directory.
+Only `jpg`, `jpeg` and `png` is supported by the downscale feature. Any other files or invalid downscale value will cause the program to just respond with the original file.
