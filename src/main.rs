@@ -5,7 +5,9 @@ use actix_web::{
 use async_stream::stream;
 use image::{imageops, ImageFormat};
 use std::{
-    collections::HashMap, io::{Cursor, Read}, path::PathBuf
+    collections::HashMap,
+    io::{Cursor, Read},
+    path::PathBuf,
 };
 
 #[actix_web::main]
@@ -60,7 +62,11 @@ async fn resize_image(
         // Load the image
         let image = match image::open(&path) {
             Ok(img) => img,
-            Err(_) => return HttpResponse::NotFound().content_type("text/plain").body("404: Not found."),
+            Err(_) => {
+                return HttpResponse::NotFound()
+                    .content_type("text/plain")
+                    .body("404: Not found.")
+            }
         };
 
         let resized_image = match dat_mode {
@@ -138,38 +144,56 @@ async fn resize_image(
         // If it's not an image format, serve the file directly
         match std::fs::File::open(&path) {
             Ok(mut file) => {
-                let large_data_stream = stream! {
+                let metadata = file.metadata().unwrap();
+                let file_size_in_bytes = metadata.len();
+                let file_size_in_mb = file_size_in_bytes as f64 / (1024.0 * 1024.0);
 
-                    let mut chunk = vec![0u8; 10 * 1024 * 1024]; // I decalare the chunk size here as 10 mb
+                if file_size_in_mb > 100.0 {
+                    let large_data_stream = stream! {
 
-                    loop {
+                        let mut chunk = vec![0u8; 10 * 1024 * 1024]; // I decalare the chunk size here as 10 mb
 
-                        match file.read(&mut chunk) {
+                        loop {
 
-                            Ok(n) => {
-                                if n == 0 {
-                                    break;
+                            match file.read(&mut chunk) {
+
+                                Ok(n) => {
+                                    if n == 0 {
+                                        break;
+                                    }
+
+
+                                    yield Result::<Bytes, std::io::Error>::Ok(Bytes::from(chunk[..n].to_vec())); // Yielding the chunk here
+
                                 }
 
+                                Err(e) => {
 
-                                yield Result::<Bytes, std::io::Error>::Ok(Bytes::from(chunk[..n].to_vec())); // Yielding the chunk here
-
-                            }
-
-                            Err(e) => {
-
-                                yield Result::<Bytes, std::io::Error>::Err(e);
-                                break;
+                                    yield Result::<Bytes, std::io::Error>::Err(e);
+                                    break;
+                                }
                             }
                         }
-                    }
-                };
+                    };
 
-                HttpResponse::Ok()
-                    .append_header(("Cache-Control", "public, max-age=7200"))
-                    .streaming(large_data_stream)
+                    HttpResponse::Ok()
+                        .append_header(("Cache-Control", "public, max-age=7200"))
+                        .streaming(large_data_stream)
+                } else {
+                    let mut data = Vec::new();
+                    let read_state = file.read_to_end(&mut data);
+
+                    match read_state {
+                        Ok(_) => HttpResponse::Ok()
+                            .append_header(("Cache-Control", "public, max-age=7200"))
+                            .body(data),
+                        Err(_) => HttpResponse::InternalServerError().finish()
+                    }
+                }
             }
-            Err(_) => HttpResponse::NotFound().content_type("text/plain").body("404: Not found."),
+            Err(_) => HttpResponse::NotFound()
+                .content_type("text/plain")
+                .body("404: Not found."),
         }
     }
 }
