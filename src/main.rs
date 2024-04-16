@@ -44,6 +44,12 @@ async fn resize_image(
         Some(ext) => ext.to_lowercase(),
         None => return HttpResponse::BadRequest().finish(), // Invalid file path
     };
+    
+    let mime_guess = mime_guess::from_path(&path).first();
+    let guessed_content_type = match mime_guess {
+        Some(mime) => mime.to_string(),
+        None => "application/octet-stream".to_string(),
+    };
 
     // Parse the downscale query parameter
     let jas = &String::new();
@@ -117,6 +123,7 @@ async fn resize_image(
                 Ok(_) => {
                     return HttpResponse::Ok()
                         .append_header(("Cache-Control", "public, max-age=7200"))
+                        .content_type(guessed_content_type)
                         .body(cursor.into_inner())
                 }
                 Err(e) => {
@@ -132,6 +139,7 @@ async fn resize_image(
                 Ok(_) => {
                     return HttpResponse::Ok()
                         .append_header(("Cache-Control", "public, max-age=7200"))
+                        .content_type(guessed_content_type)
                         .body(cursor.into_inner())
                 }
                 Err(e) => {
@@ -178,6 +186,7 @@ async fn resize_image(
 
                     HttpResponse::Ok()
                         .append_header(("Cache-Control", "public, max-age=7200"))
+                        .content_type(guessed_content_type)
                         .streaming(large_data_stream)
                 } else {
                     let mut data = Vec::new();
@@ -186,6 +195,7 @@ async fn resize_image(
                     match read_state {
                         Ok(_) => HttpResponse::Ok()
                             .append_header(("Cache-Control", "public, max-age=7200"))
+                            .content_type(guessed_content_type)
                             .body(data),
                         Err(_) => HttpResponse::InternalServerError().finish()
                     }
