@@ -4,6 +4,8 @@ use actix_web::{
 };
 use async_stream::stream;
 use image::{imageops, ImageFormat};
+use resvg::tiny_skia;
+extern crate resvg;
 use std::{
     collections::HashMap,
     io::{Cursor, Read},
@@ -15,6 +17,7 @@ async fn main() -> std::io::Result<()> {
     println!("Listening...");
     HttpServer::new(|| {
         App::new()
+            .service(web::resource("/svg_png").route(web::get().to(svg_to_png)))
             .service(web::resource("/").route(web::get().to(index_handler)))
             .service(web::resource("/{filename:.*}").route(web::get().to(resize_image)))
         // Route for image resizing
@@ -22,6 +25,70 @@ async fn main() -> std::io::Result<()> {
     .bind("0.0.0.0:8080")?
     .run()
     .await
+}
+
+async fn svg_to_png(
+    query: web::Query<HashMap<String, String>>,
+) -> HttpResponse {
+    let no_drop = String::new();
+    let svg_url = query.get("src").unwrap_or(&no_drop);
+    let scale = query.get("scale").unwrap_or(&no_drop);
+
+    if !svg_url.ends_with(".svg") {
+        return HttpResponse::BadRequest().body("NOT SVG FILE");
+    }
+
+    let max_horizontal_resolution: u32 = match scale as &str {
+        "s" => 128,
+        _ => 512
+    };
+
+    let svg_buffer = match reqwest::blocking::get(format!("http://localhost:8080/{}", svg_url)) {
+        Ok(w) => w,
+        Err(e) => {
+            return HttpResponse::BadRequest().body(e.to_string());
+        }
+    };
+
+    if !svg_buffer.status().is_success() {
+        if svg_buffer.status() == reqwest::StatusCode::NOT_FOUND {
+            return HttpResponse::NotFound().finish();
+        } else {
+            return HttpResponse::BadRequest().finish();
+        }
+    }
+
+    let svg_bytes = match svg_buffer.bytes() {
+        Ok(w) => w,
+        Err(e) => {
+            return HttpResponse::BadRequest().body(e.to_string());
+        }
+    };
+
+    let mut fontdb = resvg::usvg::fontdb::Database::new();
+    fontdb.load_system_fonts();
+
+    let tree =
+        match resvg::usvg::Tree::from_data(&svg_bytes, &resvg::usvg::Options::default(), &fontdb) {
+            Ok(w) => w,
+            Err(e) => {
+                return HttpResponse::BadRequest().body(e.to_string());
+            }
+        };
+
+    let pixmap_size = tree.size().to_int_size();
+    let resolution = solve_ratio(pixmap_size.height(), pixmap_size.width(), max_horizontal_resolution);
+    let mut pixmap = tiny_skia::Pixmap::new(resolution, max_horizontal_resolution).unwrap();
+    resvg::render(&tree, tiny_skia::Transform::default(), &mut pixmap.as_mut());
+
+    let png_data = match pixmap.encode_png() {
+        Ok(w) => w,
+        Err(e) => {
+            return HttpResponse::BadRequest().body(e.to_string());
+        }
+    };
+
+    HttpResponse::Ok().content_type("image/png").body(png_data)
 }
 
 async fn index_handler() -> HttpResponse {
@@ -37,14 +104,14 @@ async fn resize_image(
     query: web::Query<HashMap<String, String>>,
 ) -> HttpResponse {
     let filename = &info.0;
-    let path = PathBuf::from(format!("/collection/{}", filename));
+    let path = PathBuf::from(format!("./collection/{}", filename));
 
     // Determine the file extension
     let extension = match path.extension().and_then(|ext| ext.to_str()) {
         Some(ext) => ext.to_lowercase(),
         None => return HttpResponse::BadRequest().finish(), // Invalid file path
     };
-    
+
     let mime_guess = mime_guess::from_path(&path).first();
     let guessed_content_type = match mime_guess {
         Some(mime) => mime.to_string(),
@@ -197,7 +264,7 @@ async fn resize_image(
                             .append_header(("Cache-Control", "public, max-age=7200"))
                             .content_type(guessed_content_type)
                             .body(data),
-                        Err(_) => HttpResponse::InternalServerError().finish()
+                        Err(_) => HttpResponse::InternalServerError().finish(),
                     }
                 }
             }

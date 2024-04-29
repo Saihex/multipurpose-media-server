@@ -1,3 +1,5 @@
+**Version: 0.0.2**
+
 # Saihex Studios' Image Server Access Software
 This software is used by [Saihex Studios](www.saihex.com) as the web server for allowing access to our image server. Back then we used Nginx for this purpose but for storage concern we made this software that can scale down images so that the server only have to hold a single image at high resolution and the program will scale it down depending on the query provided by the HTTP request.
 
@@ -17,3 +19,10 @@ The downscaling feature works by providing certain query parameters to the HTTP 
 
 Empty path (`https://img.example.com/`) will make the program to load `index.html` in the collection directory. Will cause error 500 if none present in the directory.
 Only `jpg`, `jpeg` and `png` is supported by the downscale feature. Any other files or invalid downscale value will cause the program to just respond with the original file.
+
+## On the fly SVG to PNG conversion (0.0.2 and higher)
+link to `https://img.example.com/svg_png` will run SVG-PNG mode. Query parameter with key of `src` must be given and contains value of the SVG file path relative to the collection directory shown as the closured text `https://img.example.com/(path/to/your/svg.svg)`. The program will request to itself on port `8080` to that file to read the SVG bytes then render it as PNG and return it as the body with content type `image/png`.
+
+`scale` query parameter can be used to dictate the scale of the rendered PNG. By default the program will render the SVG at `512` vertical resolution and whatever resolution that follows the SVG canvas aspect ratio. Setting `scale` query parameter to `s` will lower the vertical resolution to `128`.
+
+*Side Note: Thanks Discord for making me had to make this for my website SVG embed image to work on your app*
