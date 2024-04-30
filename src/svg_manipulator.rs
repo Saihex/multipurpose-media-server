@@ -30,8 +30,6 @@ pub fn calculate_scaling_factor(x1: f32, y1: f32, x2: f32) -> f32 {
         panic!("Neither x1 nor y1 can be zero to avoid division by zero!");
     }
     let kx = x2 / x1;
-    // let ky = y2 / y1;
 
-    // Check if both factors are approximately equal
     kx
 }
