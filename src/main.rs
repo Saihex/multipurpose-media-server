@@ -11,6 +11,7 @@ use std::{
     io::{Cursor, Read},
     path::PathBuf,
 };
+mod svg_manipulator;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -38,7 +39,7 @@ async fn svg_to_png(
         return HttpResponse::BadRequest().body("NOT SVG FILE");
     }
 
-    let max_horizontal_resolution: u32 = match scale as &str {
+    let max_vertical_resolution: u32 = match scale as &str {
         "s" => 128,
         _ => 512
     };
@@ -76,10 +77,23 @@ async fn svg_to_png(
             }
         };
 
+
     let pixmap_size = tree.size().to_int_size();
-    let resolution = solve_ratio(pixmap_size.height(), pixmap_size.width(), max_horizontal_resolution);
-    let mut pixmap = tiny_skia::Pixmap::new(resolution, max_horizontal_resolution).unwrap();
-    resvg::render(&tree, tiny_skia::Transform::default(), &mut pixmap.as_mut());
+    let horizontal_resolution = solve_ratio(pixmap_size.height(), pixmap_size.width(), max_vertical_resolution);
+    let zoom_factor = svg_manipulator::calculate_scaling_factor(pixmap_size.height() as f32, pixmap_size.width() as f32, horizontal_resolution as f32);
+    let fit_to = svg_manipulator::FitTo::Zoom(zoom_factor);
+
+    let zoom_size = match fit_to.fit_to_size(pixmap_size) {
+        Some(w) => w,
+        None => {
+            return HttpResponse::InternalServerError().finish();
+        }
+    };
+
+    let ts = fit_to.fit_to_transform(tree.size().to_int_size());
+
+    let mut pixmap = tiny_skia::Pixmap::new(zoom_size.width(), zoom_size.height()).unwrap();
+    resvg::render(&tree, ts, &mut pixmap.as_mut());
 
     let png_data = match pixmap.encode_png() {
         Ok(w) => w,
