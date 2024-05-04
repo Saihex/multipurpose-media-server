@@ -1,6 +1,8 @@
 **Version: 0.0.2**
 
 # Saihex Studios' Multipurpose Media Server
+<img align="right" width="128" src="https://img.saihex.com/software_logos/multipurpose_media_server.svg">
+
 This software is used by [Saihex Studios](www.saihex.com) as the web server for allowing access to our image server. Back then we used Nginx for this purpose but for storage concern we made this software that can scale down images so that the server only have to hold a single image at high resolution and the program will scale it down depending on the query provided by the HTTP request.
 
 Used dependencies
