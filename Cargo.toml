@@ -1,5 +1,5 @@
 [package]
-name = "image-server-downscaller"
+name = "multipurpose-media-server"
 version = "0.1.0"
 edition = "2021"
 

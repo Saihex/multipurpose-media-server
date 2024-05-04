@@ -1,10 +1,24 @@
 **Version: 0.0.2**
 
-# Saihex Studios' Image Server Access Software
-<img align="right" width="128" src="https://img.saihex.com/software_logos/Image_server_downscaller.svg">
-
+# Saihex Studios' Multipurpose Media Server
 This software is used by [Saihex Studios](www.saihex.com) as the web server for allowing access to our image server. Back then we used Nginx for this purpose but for storage concern we made this software that can scale down images so that the server only have to hold a single image at high resolution and the program will scale it down depending on the query provided by the HTTP request.
 
+Used dependencies
+```
+async-stream = "0.3.5" --  MIT
+actix-web = "4" --  MIT OR Apache-2.0 
+actix-files = "0.6" --  MIT OR Apache-2.0 
+image = "0.25.1" --  MIT OR Apache-2.0 
+tokio = { version = "1", features = ["full"] } --  MIT
+mime_guess = "2.0" --  MIT
+reqwest = { version = "0.12.4", features = ["blocking", "json"] } --  MIT OR Apache-2.0 
+resvg = "0.41.0" --  MPL-2.0
+```
+
+## General features
+Works as normal public media server, on-the-fly downscaling feature for images, on-the-fly SVG to PNG conversion, and root path `index.html` redirect.
+
+## How to use
 In order to use this, you will need a Docker Daemon installed on your machine. Then, clone this git repository and build the Docker image. Once that's done, you may run it with the following configuration:
 
 - Expose port `8080`
