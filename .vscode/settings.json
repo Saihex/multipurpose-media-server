@@ -1,8 +1,14 @@
 {
     "cSpell.words": [
         "actix",
+        "decalare",
         "downscaling",
+        "fontdb",
+        "imageops",
+        "pixmap",
         "reqwest",
-        "resvg"
+        "resvg",
+        "skia",
+        "usvg"
     ]
 }
