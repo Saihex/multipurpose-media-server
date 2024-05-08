@@ -5,3 +5,4 @@ Dockerfile
 .gitignore
 readme.md
 /collection
+Cargo.lock

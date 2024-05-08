@@ -18,7 +18,7 @@ COPY --from=builder /app/target/release/multipurpose-media-server /usr/local/bin
 COPY ./font /usr/share/fonts/custom
 RUN fc-cache -f -v
 
+# Expose things
 EXPOSE 8080
-VOLUME [ "/collection" ]
 
 CMD ["multipurpose-media-server"]
