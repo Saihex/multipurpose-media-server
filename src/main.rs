@@ -102,12 +102,12 @@ async fn svg_to_png(
         }
     };
 
-    HttpResponse::Ok().content_type("image/png").body(png_data)
+    HttpResponse::Ok().append_header(("Cache-Control", "public, max-age=7200")).content_type("image/png").body(png_data)
 }
 
 async fn index_handler() -> HttpResponse {
     if let Ok(content) = std::fs::read_to_string("/collection/index.html") {
-        HttpResponse::Ok().body(content)
+        HttpResponse::Ok().append_header(("Cache-Control", "public, max-age=7200")).body(content)
     } else {
         HttpResponse::InternalServerError().body("Failed to read index.html")
     }

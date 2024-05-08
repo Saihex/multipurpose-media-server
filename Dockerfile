@@ -10,10 +10,15 @@ RUN strip target/release/multipurpose-media-server
 FROM debian:buster-slim
 
 # Install OpenSSL
-RUN apt-get update && apt-get install -y libssl-dev
+RUN apt-get update && apt-get install -y libssl-dev fontconfig
 
 COPY --from=builder /app/target/release/multipurpose-media-server /usr/local/bin/multipurpose-media-server
+
+# Register custom fonts
+COPY ./font /usr/share/fonts/custom
+RUN fc-cache -f -v
+
+# Expose things
 EXPOSE 8080
-VOLUME [ "/collection" ]
 
 CMD ["multipurpose-media-server"]

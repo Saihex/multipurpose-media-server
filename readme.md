@@ -17,6 +17,10 @@ reqwest = { version = "0.12.4", features = ["blocking", "json"] } --  MIT OR Apa
 resvg = "0.41.0" --  MPL-2.0
 ```
 
+Included fonts for on-the-fly SVG render feature
+
+- [Audiowide](https://fonts.google.com/specimen/Audiowide) > [Open Font](https://scripts.sil.org/cms/scripts/page.php?site_id=nrsi&id=OFL)
+
 ## General features
 Works as normal public media server, on-the-fly downscaling feature for images, on-the-fly SVG to PNG conversion, and root path `index.html` redirect.
 
