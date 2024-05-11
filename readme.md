@@ -1,4 +1,5 @@
-**Version: 0.0.2**
+**Version: 0.0.2-a**
+Note: Letters after the version numbers are their sub-evolutions when non-major changes were added. Version number will increase after the letter hits `z`.
 
 # Saihex Studios' Multipurpose Media Server
 <img align="right" width="128" src="https://img.saihex.com/software_logos/multipurpose_media_server.svg">
