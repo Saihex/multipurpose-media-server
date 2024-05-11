@@ -24,4 +24,4 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           push: true
-          tags: saihex/multipurpose-media-server:${{ github.event.head_commit.message }}
+          tags: docker.io/saihex/multipurpose-media-server:${{ github.event.head_commit.message }}
