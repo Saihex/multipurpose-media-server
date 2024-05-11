@@ -6,3 +6,4 @@ Dockerfile
 readme.md
 /collection
 Cargo.lock
+.github
