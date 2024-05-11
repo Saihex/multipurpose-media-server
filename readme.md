@@ -21,6 +21,11 @@ Included fonts for on-the-fly SVG render feature
 
 - [Audiowide](https://fonts.google.com/specimen/Audiowide) > [Open Font](https://scripts.sil.org/cms/scripts/page.php?site_id=nrsi&id=OFL)
 
+**Docker Image**
+```
+saihex/multipurpose-media-server:v0.0.2-a
+```
+
 ## General features
 Works as normal public media server, on-the-fly downscaling feature for images, on-the-fly SVG to PNG conversion, and root path `index.html` redirect.
 
