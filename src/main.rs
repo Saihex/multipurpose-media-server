@@ -1,6 +1,6 @@
 use actix_web::{
     web::{self, Bytes},
-    App, HttpResponse, HttpServer,
+    App, HttpResponse, HttpResponseBuilder, HttpServer,
 };
 use async_stream::stream;
 use image::{imageops, ImageFormat};
@@ -12,6 +12,9 @@ use std::{
     path::PathBuf,
 };
 mod svg_manipulator;
+const SERVER_VERSION: &str = "v0.0.2-b";
+
+//// Brain
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -28,41 +31,65 @@ async fn main() -> std::io::Result<()> {
     .await
 }
 
-async fn svg_to_png(
-    query: web::Query<HashMap<String, String>>,
-) -> HttpResponse {
+////
+
+// Making the process of adding server version header or/and cache header less verbose.
+pub trait HeaderManipulator {
+    fn server_version_header(&mut self) -> &mut Self;
+    fn server_version_cache(&mut self) -> &mut Self;
+}
+
+impl HeaderManipulator for HttpResponseBuilder {
+    fn server_version_header(&mut self) -> &mut Self {
+        self.append_header(("Server-Version", SERVER_VERSION))
+    }
+
+    fn server_version_cache(&mut self) -> &mut Self {
+        self.append_header(("Server-Version", SERVER_VERSION))
+            .append_header(("Cache-Control", "public, max-age=7200"))
+    }
+}
+
+// Handle SVG to PNG request
+async fn svg_to_png(query: web::Query<HashMap<String, String>>) -> HttpResponse {
     let no_drop = String::new();
     let svg_url = query.get("src").unwrap_or(&no_drop);
     let scale = query.get("scale").unwrap_or(&no_drop);
 
     if !svg_url.ends_with(".svg") {
-        return HttpResponse::BadRequest().body("NOT SVG FILE");
+        return HttpResponse::BadRequest()
+            .server_version_header()
+            .body("NOT SVG FILE");
     }
 
     let max_vertical_resolution: u32 = match scale as &str {
         "s" => 128,
-        _ => 512
+        _ => 512,
     };
 
     let svg_buffer = match reqwest::blocking::get(format!("http://localhost:8080/{}", svg_url)) {
         Ok(w) => w,
         Err(e) => {
-            return HttpResponse::BadRequest().body(e.to_string());
+            return HttpResponse::BadRequest()
+                .server_version_header()
+                .body(e.to_string());
         }
     };
 
     if !svg_buffer.status().is_success() {
         if svg_buffer.status() == reqwest::StatusCode::NOT_FOUND {
-            return HttpResponse::NotFound().finish();
+            return HttpResponse::NotFound().server_version_header().finish();
         } else {
-            return HttpResponse::BadRequest().finish();
+            return HttpResponse::BadRequest().server_version_header().finish();
         }
     }
 
     let svg_bytes = match svg_buffer.bytes() {
         Ok(w) => w,
         Err(e) => {
-            return HttpResponse::BadRequest().body(e.to_string());
+            return HttpResponse::BadRequest()
+                .server_version_header()
+                .body(e.to_string());
         }
     };
 
@@ -73,20 +100,31 @@ async fn svg_to_png(
         match resvg::usvg::Tree::from_data(&svg_bytes, &resvg::usvg::Options::default(), &fontdb) {
             Ok(w) => w,
             Err(e) => {
-                return HttpResponse::BadRequest().body(e.to_string());
+                return HttpResponse::BadRequest()
+                    .server_version_header()
+                    .body(e.to_string());
             }
         };
 
-
     let pixmap_size = tree.size().to_int_size();
-    let horizontal_resolution = solve_ratio(pixmap_size.height(), pixmap_size.width(), max_vertical_resolution);
-    let zoom_factor = svg_manipulator::calculate_scaling_factor(pixmap_size.height() as f32, pixmap_size.width() as f32, horizontal_resolution as f32);
+    let horizontal_resolution = solve_ratio(
+        pixmap_size.height(),
+        pixmap_size.width(),
+        max_vertical_resolution,
+    );
+    let zoom_factor = svg_manipulator::calculate_scaling_factor(
+        pixmap_size.height() as f32,
+        pixmap_size.width() as f32,
+        horizontal_resolution as f32,
+    );
     let fit_to = svg_manipulator::FitTo::Zoom(zoom_factor);
 
     let zoom_size = match fit_to.fit_to_size(pixmap_size) {
         Some(w) => w,
         None => {
-            return HttpResponse::InternalServerError().finish();
+            return HttpResponse::InternalServerError()
+                .server_version_header()
+                .finish();
         }
     };
 
@@ -98,21 +136,30 @@ async fn svg_to_png(
     let png_data = match pixmap.encode_png() {
         Ok(w) => w,
         Err(e) => {
-            return HttpResponse::BadRequest().body(e.to_string());
+            return HttpResponse::BadRequest()
+                .server_version_header()
+                .body(e.to_string());
         }
     };
 
-    HttpResponse::Ok().append_header(("Cache-Control", "public, max-age=7200")).content_type("image/png").body(png_data)
+    HttpResponse::Ok()
+        .server_version_cache()
+        .content_type("image/png")
+        .body(png_data)
 }
 
+// Handle root path request.
 async fn index_handler() -> HttpResponse {
     if let Ok(content) = std::fs::read_to_string("/collection/index.html") {
-        HttpResponse::Ok().append_header(("Cache-Control", "public, max-age=7200")).body(content)
+        HttpResponse::Ok().server_version_cache().body(content)
     } else {
-        HttpResponse::InternalServerError().body("Failed to read index.html")
+        HttpResponse::InternalServerError()
+            .server_version_header()
+            .body("Failed to read index.html")
     }
 }
 
+// Handle image resizing request.
 async fn resize_image(
     info: web::Path<(String,)>,
     query: web::Query<HashMap<String, String>>,
@@ -123,7 +170,7 @@ async fn resize_image(
     // Determine the file extension
     let extension = match path.extension().and_then(|ext| ext.to_str()) {
         Some(ext) => ext.to_lowercase(),
-        None => return HttpResponse::BadRequest().finish(), // Invalid file path
+        None => return HttpResponse::BadRequest().server_version_header().finish(), // Invalid file path
     };
 
     let mime_guess = mime_guess::from_path(&path).first();
@@ -152,6 +199,7 @@ async fn resize_image(
             Err(_) => {
                 return HttpResponse::NotFound()
                     .content_type("text/plain")
+                    .server_version_header()
                     .body("404: Not found.")
             }
         };
@@ -203,13 +251,15 @@ async fn resize_image(
             ) {
                 Ok(_) => {
                     return HttpResponse::Ok()
-                        .append_header(("Cache-Control", "public, max-age=7200"))
+                        .server_version_header()
                         .content_type(guessed_content_type)
                         .body(cursor.into_inner())
                 }
                 Err(e) => {
                     println!("{}", e);
-                    return HttpResponse::InternalServerError().finish();
+                    return HttpResponse::InternalServerError()
+                        .server_version_header()
+                        .finish();
                 }
             }
         } else {
@@ -219,13 +269,15 @@ async fn resize_image(
             ) {
                 Ok(_) => {
                     return HttpResponse::Ok()
-                        .append_header(("Cache-Control", "public, max-age=7200"))
+                        .server_version_header()
                         .content_type(guessed_content_type)
                         .body(cursor.into_inner())
                 }
                 Err(e) => {
                     println!("{}", e);
-                    return HttpResponse::InternalServerError().finish();
+                    return HttpResponse::InternalServerError()
+                        .server_version_header()
+                        .finish();
                 }
             }
         }
@@ -266,7 +318,7 @@ async fn resize_image(
                     };
 
                     HttpResponse::Ok()
-                        .append_header(("Cache-Control", "public, max-age=7200"))
+                        .server_version_cache()
                         .content_type(guessed_content_type)
                         .streaming(large_data_stream)
                 } else {
@@ -275,7 +327,7 @@ async fn resize_image(
 
                     match read_state {
                         Ok(_) => HttpResponse::Ok()
-                            .append_header(("Cache-Control", "public, max-age=7200"))
+                            .server_version_cache()
                             .content_type(guessed_content_type)
                             .body(data),
                         Err(_) => HttpResponse::InternalServerError().finish(),
@@ -284,11 +336,13 @@ async fn resize_image(
             }
             Err(_) => HttpResponse::NotFound()
                 .content_type("text/plain")
+                .server_version_header()
                 .body("404: Not found."),
         }
     }
 }
 
+// Check if a file extension is supported as image. Used for resize_image() validation.
 fn valid_image_file(file_extension: &String) -> bool {
     match file_extension.as_str() {
         "jpg" | "jpeg" => true,
@@ -297,9 +351,7 @@ fn valid_image_file(file_extension: &String) -> bool {
     }
 }
 
+// Used to downscale a image resolution following its aspect ratio.
 fn solve_ratio(a: u32, b: u32, d: u32) -> u32 {
-    // Calculate the value of X using the given ratios
-    let x = (d * b) / a;
-    // Return the value of X
-    x
+    (d * b) / a
 }

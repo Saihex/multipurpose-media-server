@@ -21,7 +21,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_AUTOMATION_PASSWORD }}
       -
         name: Build and push
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v5
         with:
           push: true
           tags: docker.io/saihex/multipurpose-media-server:${{ github.event.head_commit.message }}
