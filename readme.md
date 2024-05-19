@@ -1,4 +1,4 @@
-**Version: 0.0.2-b**
+**Version: 0.0.2-c**
 
 Note: Letters after the version numbers are their sub-evolutions when non-major changes were added. Version number will increase after the letter hits `z`.
 If we made a push and realized there is a bug or mistake in the code that is lethal we will delete the Docker tag and push the fixes under the same version tag.
@@ -18,6 +18,7 @@ tokio = { version = "1", features = ["full"] } --  MIT
 mime_guess = "2.0" --  MIT
 reqwest = { version = "0.12.4", features = ["blocking", "json"] } --  MIT OR Apache-2.0 
 resvg = "0.41.0" --  MPL-2.0
+webp = "0.3.0" -- MIT or Apache-2.0
 ```
 
 Included fonts for on-the-fly SVG render feature
@@ -26,7 +27,7 @@ Included fonts for on-the-fly SVG render feature
 
 **Docker Image**
 ```
-saihex/multipurpose-media-server:v0.0.2-b
+saihex/multipurpose-media-server:v0.0.2-c
 ```
 
 ## General features
@@ -53,6 +54,12 @@ Only `jpg`, `jpeg` and `png` is supported by the downscale feature. Any other fi
 ## On the fly SVG to PNG conversion (0.0.2 and higher)
 link to `https://img.example.com/svg_png` will run SVG-PNG mode. Query parameter with key of `src` must be given and contains value of the SVG file path relative to the collection directory shown as the closured text `https://img.example.com/(path/to/your/svg.svg)`. The program will request to itself on port `8080` to that file to read the SVG bytes then render it as PNG and return it as the body with content type `image/png`.
 
-`scale` query parameter can be used to dictate the scale of the rendered PNG. By default the program will render the SVG at `512` vertical resolution and whatever resolution that follows the SVG canvas aspect ratio. Setting `scale` query parameter to `s` will lower the vertical resolution to `128`.
+`scale` query parameter can be used to dictate the scale of the rendered PNG. By default the program will render the SVG at `512` vertical resolution and whatever resolution that follows the SVG canvas aspect ratio. Setting `scale` query parameter to `s` or `fs` will lower the vertical resolution to `128`.
 
 *Side Note: Thanks Discord for making me had to make this for my website SVG embed image to work on your app*
+
+## On the fly SVG/PNG/JPEG to WebP conversion (0.0.2-c and higher)
+link to `https://img.example.com/webp`. Query parameter with key of `src` must be given and contains value of the image path relative to collection directory.
+`scale` parameter can be used to downscale the images. This feature was added to further improve Saihex's website performance.
+
+**Example:** `http://localhost:8080/webp?src=test.png&scale=s`

@@ -12,7 +12,8 @@ use std::{
     path::PathBuf,
 };
 mod svg_manipulator;
-const SERVER_VERSION: &str = "v0.0.2-b";
+mod webp_utility;
+const SERVER_VERSION: &str = "v0.0.2-c";
 
 //// Brain
 
@@ -22,6 +23,7 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(|| {
         App::new()
             .service(web::resource("/svg_png").route(web::get().to(svg_to_png)))
+            .service(web::resource("/webp").route(web::get().to(handle_image_webp)))
             .service(web::resource("/").route(web::get().to(index_handler)))
             .service(web::resource("/{filename:.*}").route(web::get().to(resize_image)))
         // Route for image resizing
@@ -49,6 +51,90 @@ impl HeaderManipulator for HttpResponseBuilder {
             .append_header(("Cache-Control", "public, max-age=7200"))
     }
 }
+// Handle Image to WebP request
+async fn handle_image_webp(query: web::Query<HashMap<String, String>>) -> HttpResponse {
+    let no_drop = String::new();
+    let source_url = query.get("src").unwrap_or(&no_drop);
+    let scale = query.get("scale").unwrap_or(&no_drop);
+    let png_buffer;
+
+    if source_url == &no_drop {
+        return HttpResponse::BadRequest()
+            .server_version_header()
+            .body("NO SOURCE URL");
+    }
+
+    let path = PathBuf::from(format!("./collection/{}", source_url));
+
+    if !path.exists() {
+        return HttpResponse::NotFound()
+           .server_version_header()
+           .body("FILE NOT FOUND");
+    }
+
+    if !path.is_file() {
+        return HttpResponse::BadRequest()
+           .server_version_header()
+           .body("NOT FILE");
+    }
+
+    {
+        if source_url.ends_with(".svg") {
+            let format_url = format!(
+                "http://localhost:8080/svg_png?src={}&scale={}",
+                source_url, scale
+            );
+            png_buffer = match reqwest::blocking::get(format_url) {
+                Ok(w) => w,
+                Err(e) => {
+                    return HttpResponse::BadRequest()
+                        .server_version_header()
+                        .body(e.to_string());
+                }
+            }
+        } else if source_url.ends_with(".png")
+            || source_url.ends_with(".jpeg")
+            || source_url.ends_with(".jpg")
+        {
+            let path = format!("http://0.0.0.0:8080/{}?downscale={}", source_url, scale);
+            png_buffer = match reqwest::blocking::get(path) {
+                Ok(w) => w,
+                Err(e) => {
+                    return HttpResponse::BadRequest()
+                        .server_version_header()
+                        .body(e.to_string());
+                }
+            }
+        } else {
+            return HttpResponse::BadRequest()
+                .server_version_header()
+                .body("NOT IMAGE FILE");
+        }
+    }
+
+    let image_buffer = match png_buffer.bytes() {
+        Ok(w) => w.to_vec(),
+        Err(e) => {
+            return HttpResponse::BadRequest()
+                .server_version_header()
+                .body(e.to_string());
+        }
+    };
+
+    let webp_buffer = match webp_utility::dy_image_to_web_p(image_buffer) {
+        Ok(w) => w,
+        Err(_) => {
+            return HttpResponse::InternalServerError()
+                .server_version_header()
+                .finish();
+        }
+    };
+
+    HttpResponse::Ok()
+        .content_type("image/webp")
+        .server_version_cache()
+        .body(webp_buffer)
+}
 
 // Handle SVG to PNG request
 async fn svg_to_png(query: web::Query<HashMap<String, String>>) -> HttpResponse {
@@ -64,6 +150,7 @@ async fn svg_to_png(query: web::Query<HashMap<String, String>>) -> HttpResponse 
 
     let max_vertical_resolution: u32 = match scale as &str {
         "s" => 128,
+        "fs" => 128,
         _ => 512,
     };
 
@@ -255,8 +342,7 @@ async fn resize_image(
                         .content_type(guessed_content_type)
                         .body(cursor.into_inner())
                 }
-                Err(e) => {
-                    println!("{}", e);
+                Err(_) => {
                     return HttpResponse::InternalServerError()
                         .server_version_header()
                         .finish();
@@ -273,8 +359,7 @@ async fn resize_image(
                         .content_type(guessed_content_type)
                         .body(cursor.into_inner())
                 }
-                Err(e) => {
-                    println!("{}", e);
+                Err(_) => {
                     return HttpResponse::InternalServerError()
                         .server_version_header()
                         .finish();
