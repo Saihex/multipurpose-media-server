@@ -238,7 +238,7 @@ async fn svg_to_png(query: web::Query<HashMap<String, String>>) -> HttpResponse 
 // Handle root path request.
 async fn index_handler() -> HttpResponse {
     if let Ok(content) = std::fs::read_to_string("/collection/index.html") {
-        HttpResponse::Ok().server_version_cache().body(content)
+        HttpResponse::Ok().server_version_cache().content_type("text/html").body(content)
     } else {
         HttpResponse::InternalServerError()
             .server_version_header()
