@@ -27,7 +27,7 @@ Included fonts for on-the-fly SVG render feature
 
 **Docker Image**
 ```
-saihex/multipurpose-media-server:v0.0.2-c
+saihex/multipurpose-media-server:v0.0.2-d
 ```
 
 ## General features

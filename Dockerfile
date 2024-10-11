@@ -1,4 +1,4 @@
-FROM rust:1.77.2-buster as builder
+FROM rust:1.79.0-buster as builder
 
 WORKDIR /app
 
@@ -9,8 +9,8 @@ RUN strip target/release/multipurpose-media-server
 
 FROM debian:buster-slim
 
-# Install OpenSSL
-RUN apt-get update && apt-get install -y libssl-dev fontconfig
+RUN apt update && apt upgrade -y
+RUN apt install -y libssl-dev fontconfig openssl
 
 COPY --from=builder /app/target/release/multipurpose-media-server /usr/local/bin/multipurpose-media-server
 

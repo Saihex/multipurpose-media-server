@@ -13,7 +13,7 @@ use std::{
 };
 mod svg_manipulator;
 mod webp_utility;
-const SERVER_VERSION: &str = "v0.0.2-c";
+const SERVER_VERSION: &str = "v0.0.2-d";
 
 //// Brain
 
