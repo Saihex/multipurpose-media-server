@@ -1,5 +1,10 @@
 name: Build and push to Docker Hub
 
+env:
+  VERSION:
+  REPO_NAME:
+  repository_name:
+
 on:
   push:
     branches:
@@ -19,9 +24,35 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_AUTOMATION_USERNAME }}
           password: ${{ secrets.DOCKERHUB_AUTOMATION_PASSWORD }}
-      -
-        name: Build and push
-        uses: docker/build-push-action@v5
-        with:
-          push: true
-          tags: docker.io/saihex/multipurpose-media-server:${{ github.event.head_commit.message }}
+
+      - name: Get repository name
+        id: repo_name
+        run: echo "REPO_NAME=$(echo ${{ github.repository }} | cut -d'/' -f2)" >> $GITHUB_ENV
+
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Extract version from Changelog.md
+        id: get_version
+        run: |
+          # Extract the version from the changelog file
+          VERSION=$(ls *Changelog.md | grep -oP '^[^ ]+' | cut -c2-)
+
+          if [ -z "$VERSION" ]; then
+            echo "No version found in Changelog.md"
+            exit 1
+          fi
+
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+
+      - name: Get repository name
+        run: |
+          echo "repository_name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+      - name: Build and tag the Docker image
+        run: |
+          docker build -t ${{ env.repository_name }}:v${{ env.VERSION }} .
+
+      - name: Push Docker Image
+        run: |
+          docker push ${{ env.repository_name }}:v${{ env.VERSION }}
