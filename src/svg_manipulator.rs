@@ -1,4 +1,3 @@
-// followed resvg CLI code.
 use resvg::tiny_skia;
 
 pub enum FitTo {

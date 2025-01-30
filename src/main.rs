@@ -7,33 +7,12 @@ use image::{imageops, ImageFormat};
 use resvg::tiny_skia;
 extern crate resvg;
 use std::{
-    collections::HashMap,
-    io::{Cursor, Read},
-    path::PathBuf,
+    collections::HashMap, fs, io::{Cursor, Read}, path::PathBuf
 };
 mod svg_manipulator;
 mod webp_utility;
-const SERVER_VERSION: &str = "v0.0.2-d";
-
-//// Brain
-
-#[actix_web::main]
-async fn main() -> std::io::Result<()> {
-    println!("Listening...");
-    HttpServer::new(|| {
-        App::new()
-            .service(web::resource("/svg_png").route(web::get().to(svg_to_png)))
-            .service(web::resource("/webp").route(web::get().to(handle_image_webp)))
-            .service(web::resource("/").route(web::get().to(index_handler)))
-            .service(web::resource("/{filename:.*}").route(web::get().to(resize_image)))
-        // Route for image resizing
-    })
-    .bind("0.0.0.0:8080")?
-    .run()
-    .await
-}
-
-////
+const SERVER_VERSION: &str = "v0.0.2-e";
+static EMPTY_STRING: String = String::new();
 
 // Making the process of adding server version header or/and cache header less verbose.
 pub trait HeaderManipulator {
@@ -48,34 +27,72 @@ impl HeaderManipulator for HttpResponseBuilder {
 
     fn server_version_cache(&mut self) -> &mut Self {
         self.append_header(("Server-Version", SERVER_VERSION))
-            .append_header(("Cache-Control", "public, max-age=7200"))
+            .append_header(("Cache-Control", "public, max-age=28800"))
     }
 }
+
+// Used to downscale a image resolution following its aspect ratio.
+fn solve_ratio(a: u32, b: u32, d: u32) -> u32 {
+    (d * b) / a
+}
+
+// Check if a file extension is supported as image. Used for resize_image() validation.
+fn valid_image_file(file_extension: &String) -> bool {
+    match file_extension.as_str() {
+        "jpg" | "jpeg" | "png" => true,
+        _ => false,
+    }
+}
+
+// file checking, returns true if okay. HttpResponse if not okay and are errors.
+fn check_path(path: &str) -> Result<bool, HttpResponse> {
+    let _path = PathBuf::from(format!("./collection/{}", path));
+
+    if !_path.exists() {
+        return Err(HttpResponse::NotFound()
+        .server_version_header()
+        .body("FILE NOT FOUND"));
+    }
+
+    if !_path.is_file() {
+        return Err(HttpResponse::BadRequest()
+        .server_version_header()
+        .body("NOT FILE"));
+    }
+
+    return Ok(true);
+}
+
+/// the methods
+
+// Handle root path request. Simply respond with the default HTML.
+async fn index_handler() -> HttpResponse {
+    if let Ok(content) = std::fs::read_to_string("/collection/index.html") {
+        HttpResponse::Ok().server_version_cache().content_type("text/html").body(content)
+    } else {
+        HttpResponse::InternalServerError()
+            .server_version_header()
+            .body("Failed to read index.html")
+    }
+}
+
 // Handle Image to WebP request
 async fn handle_image_webp(query: web::Query<HashMap<String, String>>) -> HttpResponse {
-    let no_drop = String::new();
-    let source_url = query.get("src").unwrap_or(&no_drop);
-    let scale = query.get("scale").unwrap_or(&no_drop);
+    let source_url = query.get("src").unwrap_or(&EMPTY_STRING);
+    let scale = query.get("scale").unwrap_or(&EMPTY_STRING);
     let png_buffer;
 
-    if source_url == &no_drop {
+    if source_url == &EMPTY_STRING {
         return HttpResponse::BadRequest()
             .server_version_header()
             .body("NO SOURCE URL");
     }
 
-    let path = PathBuf::from(format!("./collection/{}", source_url));
-
-    if !path.exists() {
-        return HttpResponse::NotFound()
-           .server_version_header()
-           .body("FILE NOT FOUND");
-    }
-
-    if !path.is_file() {
-        return HttpResponse::BadRequest()
-           .server_version_header()
-           .body("NOT FILE");
+    match check_path(&source_url) {
+        Err(err) => {
+            return err;
+        }
+        Ok(_) => (),
     }
 
     {
@@ -138,14 +155,20 @@ async fn handle_image_webp(query: web::Query<HashMap<String, String>>) -> HttpRe
 
 // Handle SVG to PNG request
 async fn svg_to_png(query: web::Query<HashMap<String, String>>) -> HttpResponse {
-    let no_drop = String::new();
-    let svg_url = query.get("src").unwrap_or(&no_drop);
-    let scale = query.get("scale").unwrap_or(&no_drop);
+    let svg_path = query.get("src").unwrap_or(&EMPTY_STRING);
+    let scale = query.get("scale").unwrap_or(&EMPTY_STRING);
 
-    if !svg_url.ends_with(".svg") {
+    if !svg_path.ends_with(".svg") {
         return HttpResponse::BadRequest()
             .server_version_header()
             .body("NOT SVG FILE");
+    }
+
+    match check_path(&svg_path) {
+        Err(err) => {
+            return err;
+        }
+        Ok(_) => (),
     }
 
     let max_vertical_resolution: u32 = match scale as &str {
@@ -154,29 +177,12 @@ async fn svg_to_png(query: web::Query<HashMap<String, String>>) -> HttpResponse 
         _ => 512,
     };
 
-    let svg_buffer = match reqwest::blocking::get(format!("http://localhost:8080/{}", svg_url)) {
+    let the_file = match fs::read(format!("./collection/{}", svg_path)) {
         Ok(w) => w,
         Err(e) => {
-            return HttpResponse::BadRequest()
-                .server_version_header()
-                .body(e.to_string());
-        }
-    };
-
-    if !svg_buffer.status().is_success() {
-        if svg_buffer.status() == reqwest::StatusCode::NOT_FOUND {
-            return HttpResponse::NotFound().server_version_header().finish();
-        } else {
-            return HttpResponse::BadRequest().server_version_header().finish();
-        }
-    }
-
-    let svg_bytes = match svg_buffer.bytes() {
-        Ok(w) => w,
-        Err(e) => {
-            return HttpResponse::BadRequest()
-                .server_version_header()
-                .body(e.to_string());
+            return HttpResponse::InternalServerError()
+               .server_version_header()
+               .body(e.to_string());
         }
     };
 
@@ -184,7 +190,7 @@ async fn svg_to_png(query: web::Query<HashMap<String, String>>) -> HttpResponse 
     fontdb.load_system_fonts();
 
     let tree =
-        match resvg::usvg::Tree::from_data(&svg_bytes, &resvg::usvg::Options::default(), &fontdb) {
+        match resvg::usvg::Tree::from_data(&the_file[..], &resvg::usvg::Options::default(), &fontdb) {
             Ok(w) => w,
             Err(e) => {
                 return HttpResponse::BadRequest()
@@ -233,17 +239,6 @@ async fn svg_to_png(query: web::Query<HashMap<String, String>>) -> HttpResponse 
         .server_version_cache()
         .content_type("image/png")
         .body(png_data)
-}
-
-// Handle root path request.
-async fn index_handler() -> HttpResponse {
-    if let Ok(content) = std::fs::read_to_string("/collection/index.html") {
-        HttpResponse::Ok().server_version_cache().content_type("text/html").body(content)
-    } else {
-        HttpResponse::InternalServerError()
-            .server_version_header()
-            .body("Failed to read index.html")
-    }
 }
 
 // Handle image resizing request.
@@ -427,16 +422,19 @@ async fn resize_image(
     }
 }
 
-// Check if a file extension is supported as image. Used for resize_image() validation.
-fn valid_image_file(file_extension: &String) -> bool {
-    match file_extension.as_str() {
-        "jpg" | "jpeg" => true,
-        "png" => true,
-        _ => false,
-    }
-}
-
-// Used to downscale a image resolution following its aspect ratio.
-fn solve_ratio(a: u32, b: u32, d: u32) -> u32 {
-    (d * b) / a
+//// Brain
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    println!("Listening...");
+    HttpServer::new(|| {
+        App::new()
+            .service(web::resource("/svg_png").route(web::get().to(svg_to_png)))
+            .service(web::resource("/webp").route(web::get().to(handle_image_webp)))
+            .service(web::resource("/").route(web::get().to(index_handler)))
+            .service(web::resource("/{filename:.*}").route(web::get().to(resize_image)))
+        // Route for image resizing
+    })
+    .bind("0.0.0.0:8080")?
+    .run()
+    .await
 }

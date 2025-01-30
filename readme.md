@@ -1,4 +1,4 @@
-**Version: 0.0.2-c**
+**Version: 0.0.2-e**
 
 Note: Letters after the version numbers are their sub-evolutions when non-major changes were added. Version number will increase after the letter hits `z`.
 If we made a push and realized there is a bug or mistake in the code that is lethal we will delete the Docker tag and push the fixes under the same version tag.
@@ -27,7 +27,7 @@ Included fonts for on-the-fly SVG render feature
 
 **Docker Image**
 ```
-saihex/multipurpose-media-server:v0.0.2-d
+saihex/multipurpose-media-server:v0.0.2-e
 ```
 
 ## General features

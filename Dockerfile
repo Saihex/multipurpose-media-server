@@ -1,4 +1,5 @@
-FROM rust:1.79.0-buster as builder
+# Build Stage
+FROM rust:1.84.0 AS builder
 
 WORKDIR /app
 
@@ -7,8 +8,10 @@ COPY . .
 RUN cargo build --release
 RUN strip target/release/multipurpose-media-server
 
-FROM debian:buster-slim
+# Runtime Stage
+FROM debian:stable-slim
 
+# Update and install dependencies
 RUN apt update && apt upgrade -y
 RUN apt install -y libssl-dev fontconfig openssl
 
@@ -21,4 +24,5 @@ RUN fc-cache -f -v
 # Expose things
 EXPOSE 8080
 
+# Default command
 CMD ["multipurpose-media-server"]
